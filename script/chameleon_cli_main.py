@@ -9,6 +9,9 @@ import chameleon_cmd
 import colorama
 import chameleon_cli_unit
 import os
+from prompt_toolkit import prompt
+from prompt_toolkit.completion import NestedCompleter
+
 
 if os.name == 'posix':
    import readline
@@ -33,7 +36,7 @@ BANNER = f"""
 ██║     ██╔══██║██╔══██║██║╚██╔╝██║██╔══╝  ██║     ██╔══╝  ██║   ██║██║╚██╗██║
 ╚██████╗██║  ██║██║  ██║██║ ╚═╝ ██║███████╗███████╗███████╗╚██████╔╝██║ ╚████║
  ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝     ╚═╝╚══════╝╚══════╝╚══════╝ ╚═════╝ ╚═╝  ╚═══╝
-                                                                                                                         
+                                                                              
 ██████╗ ███████╗██╗      ██████╗  █████╗ ██████╗ ███████╗██████╗                                                         
 ██╔══██╗██╔════╝██║     ██╔═══██╗██╔══██╗██╔══██╗██╔════╝██╔══██╗                                                        
 ██████╔╝█████╗  ██║     ██║   ██║███████║██║  ██║█████╗  ██║  ██║                                                        
@@ -159,6 +162,15 @@ class ChameleonCLI:
         cmd_end_position = cmd_str.index(cmd_end) + len(cmd_end) + 1
         return cmd_maps, (cmd_str[:cmd_end_position], cmd_str[cmd_end_position:])
 
+    def get_completer(self):
+        # Create a NestedCompleter for autocompletion
+        completer_dict = {
+            "hw": {"connect": None, "chipid": {"get": None}, "address": {"get": None}, "mode": {"set": None, "get": None}, "slot": {"change": None, "type": None, "init": None, "enable": None, "nick": {"set": None, "get": None}, "update": None, "openall": None}, "dfu": None},
+            "hf": {"14a": {"scan": None, "info": None}, "mf": {"nested": None, "darkside": None, "rdbl": None, "wrbl": None, "detection": {"enable": None, "count": None, "decrypt": None}, "sim": None, "eload": None}},
+            "lf": {"em": {"read": None, "write": None, "sim": None}}
+        }
+        return NestedCompleter.from_nested_dict(completer_dict)
+
     def startCLI(self):
         """
             start listen input.
@@ -166,12 +178,66 @@ class ChameleonCLI:
         """
         self.print_banner()
         closing = False
+        status = f"{colorama.Fore.GREEN}USB" if self.device_com.isOpen() else f"{colorama.Fore.RED}Offline"
         while True:
-            # wait user input
-            status = f"{colorama.Fore.GREEN}USB" if self.device_com.isOpen() else f"{colorama.Fore.RED}Offline"
-            print(f"[{status}{colorama.Style.RESET_ALL}] chameleon --> ", end="")
+            user_input = prompt(f"[{status}{colorama.Style.RESET_ALL}] chameleon --> ", completer=self.get_completer())
             try:
-                cmd_str = input().strip()
+                cmd_str = user_input.strip()
+                if cmd_str == "clear":
+                    if platform.system() == 'Windows':
+                        os.system("cls")
+                    elif platform.system() == 'Linux':
+                        os.system("clear")
+                    else:
+                        print("No screen clear implement")
+                    continue
+
+                # parse cmd
+                cmd_map, args_str = self.parse_cli_cmd(cmd_str)
+                is_exec_map = 'unit' in cmd_map
+                if is_exec_map:
+                    # new a unit instance
+                    unit_clz = cmd_map['unit']
+                    if callable(unit_clz):
+                        unit: chameleon_cli_unit.BaseCLIUnit = unit_clz()
+                    else:
+                        raise TypeError("CMD unit is not a 'BaseCLIUnit'")
+                    # set variables of required
+                    unit.device_com = self.device_com
+                    # parse args
+                    args_parse_result = unit.args_parser()
+                    if args_parse_result is not None:
+                        args: argparse.ArgumentParser = args_parse_result
+                        args.prog = args_str[0]
+                        try:
+                            args_parse_result = args.parse_args(args_str[1].split())
+                        except chameleon_cli_unit.ArgsParserError as e:
+                            args.print_usage()
+                            print(str(e).strip(), end="\n\n")
+                            continue
+                        except chameleon_cli_unit.ParserExitIntercept:
+                            # don't exit process.
+                            continue
+                    # noinspection PyBroadException
+                    try:
+                        # before process cmd, we need to do something...
+                        if not unit.before_exec(args_parse_result):
+                            continue
+                        # start process cmd
+                        unit.on_exec(args_parse_result)
+                    except (chameleon_cmd.NegativeResponseError, chameleon_cli_unit.ArgsParserError) as e:
+                        print(f"{colorama.Fore.RED}{str(e)}{colorama.Style.RESET_ALL}")
+                    except Exception:
+                        print(f"CLI exception: {colorama.Fore.RED}{traceback.format_exc()}{colorama.Style.RESET_ALL}")
+                elif isinstance(cmd_map, dict):
+                    print("".ljust(18, "-") + "".ljust(10) + "".ljust(30, "-"))
+                    for map_key in cmd_map:
+                        map_item = cmd_map[map_key]
+                        if 'help' in map_item:
+                            cmd_title = f"{colorama.Fore.GREEN}{map_key}{colorama.Style.RESET_ALL}"
+                            help_line = (f" - {cmd_title}".ljust(37)) + f"[ {map_item['help']} ]"
+                            print(help_line)
+                
             except EOFError:
                 print("")
                 closing = True
@@ -180,64 +246,7 @@ class ChameleonCLI:
                 print("Bye, thank you.  ^.^ ")
                 self.device_com.close()
                 sys.exit(996)
-
-            # clear screen
-            if cmd_str == "clear":
-                if platform.system() == 'Windows':
-                    os.system("cls")
-                elif platform.system() == 'Linux':
-                    os.system("clear")
-                else:
-                    print("No screen clear implement")
-                continue
-
-            # parse cmd
-            cmd_map, args_str = self.parse_cli_cmd(cmd_str)
-            is_exec_map = 'unit' in cmd_map
-            if is_exec_map:
-                # new a unit instance
-                unit_clz = cmd_map['unit']
-                if callable(unit_clz):
-                    unit: chameleon_cli_unit.BaseCLIUnit = unit_clz()
-                else:
-                    raise TypeError("CMD unit is not a 'BaseCLIUnit'")
-                # set variables of required
-                unit.device_com = self.device_com
-                # parse args
-                args_parse_result = unit.args_parser()
-                if args_parse_result is not None:
-                    args: argparse.ArgumentParser = args_parse_result
-                    args.prog = args_str[0]
-                    try:
-                        args_parse_result = args.parse_args(args_str[1].split())
-                    except chameleon_cli_unit.ArgsParserError as e:
-                        args.print_usage()
-                        print(str(e).strip(), end="\n\n")
-                        continue
-                    except chameleon_cli_unit.ParserExitIntercept:
-                        # don't exit process.
-                        continue
-                # noinspection PyBroadException
-                try:
-                    # before process cmd, we need to do something...
-                    if not unit.before_exec(args_parse_result):
-                        continue
-                    # start process cmd
-                    unit.on_exec(args_parse_result)
-                except (chameleon_cmd.NegativeResponseError, chameleon_cli_unit.ArgsParserError) as e:
-                    print(f"{colorama.Fore.RED}{str(e)}{colorama.Style.RESET_ALL}")
-                except Exception:
-                    print(f"CLI exception: {colorama.Fore.RED}{traceback.format_exc()}{colorama.Style.RESET_ALL}")
-            elif isinstance(cmd_map, dict):
-                print("".ljust(18, "-") + "".ljust(10) + "".ljust(30, "-"))
-                for map_key in cmd_map:
-                    map_item = cmd_map[map_key]
-                    if 'help' in map_item:
-                        cmd_title = f"{colorama.Fore.GREEN}{map_key}{colorama.Style.RESET_ALL}"
-                        help_line = (f" - {cmd_title}".ljust(37)) + f"[ {map_item['help']} ]"
-                        print(help_line)
-
-
 if __name__ == '__main__':
     colorama.init(autoreset=True)
     ChameleonCLI().startCLI()
+
