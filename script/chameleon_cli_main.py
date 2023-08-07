@@ -9,7 +9,7 @@ import chameleon_cmd
 import colorama
 import chameleon_cli_unit
 import os
-from prompt_toolkit import prompt
+from prompt_toolkit import prompt, HTML
 from prompt_toolkit.completion import NestedCompleter
 
 
@@ -178,9 +178,11 @@ class ChameleonCLI:
         """
         self.print_banner()
         closing = False
-        status = f"{colorama.Fore.GREEN}USB" if self.device_com.isOpen() else f"{colorama.Fore.RED}Offline"
+        #status = f"{colorama.Fore.GREEN}USB" if self.device_com.isOpen() else f"{colorama.Fore.RED}Offline"
+        status = f"[<ansigreen>{'USB'}</ansigreen>]" if self.device_com.isOpen() else f"[<ansired>{'Offline'}</ansired>]"
         while True:
-            user_input = prompt(f"[{status}{colorama.Style.RESET_ALL}] chameleon --> ", completer=self.get_completer())
+            user_input = prompt(HTML(f"{status} chameleon --> "), completer=self.get_completer())
+            #user_input = prompt(f"[{status}{colorama.Style.RESET_ALL}] chameleon --> ", completer=self.get_completer())
             try:
                 cmd_str = user_input.strip()
                 if cmd_str == "clear":
@@ -191,6 +193,11 @@ class ChameleonCLI:
                     else:
                         print("No screen clear implement")
                     continue
+                if closing or cmd_str == "exit" or cmd_str == "quit" or cmd_str.startswith('q', 0) or cmd_str.startswith('e', 0):
+                    print("Bye, thank you.  ^.^ ")
+                    self.device_com.close()
+                    #sys.exit(996)
+                    break
 
                 # parse cmd
                 cmd_map, args_str = self.parse_cli_cmd(cmd_str)
@@ -237,15 +244,11 @@ class ChameleonCLI:
                             cmd_title = f"{colorama.Fore.GREEN}{map_key}{colorama.Style.RESET_ALL}"
                             help_line = (f" - {cmd_title}".ljust(37)) + f"[ {map_item['help']} ]"
                             print(help_line)
-                
+            
             except EOFError:
                 print("")
                 closing = True
 
-            if closing or cmd_str == "exit" or cmd_str == "quit" or cmd_str.startswith('q', 0) or cmd_str.startswith('e', 0):
-                print("Bye, thank you.  ^.^ ")
-                self.device_com.close()
-                sys.exit(996)
 if __name__ == '__main__':
     colorama.init(autoreset=True)
     ChameleonCLI().startCLI()
