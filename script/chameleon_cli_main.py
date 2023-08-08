@@ -8,7 +8,6 @@ import chameleon_com
 import chameleon_cmd
 import colorama
 import chameleon_cli_unit
-import os
 from prompt_toolkit import prompt, HTML
 from prompt_toolkit.completion import NestedCompleter
 
@@ -142,7 +141,7 @@ class ChameleonCLI:
             print chameleon ascii banner
         :return:
         """
-        print(colorama.Fore.YELLOW + BANNER)
+        print(colorama.Fore.MAGENTA + BANNER)
 
     def parse_cli_cmd(self, cmd_str):
         """
