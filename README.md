@@ -14,6 +14,6 @@ An improved version of the official ChamelonUltra CLI client
 
 
 ### Known bugs
-- Won't catch the KeyboardInterupt 
-- Doesn't update to green USB when connected 
-- No command history
+- [ ] Won't catch the KeyboardInterupt 
+- [ ] Doesn't update to green USB when connected 
+- [ ] No command history
