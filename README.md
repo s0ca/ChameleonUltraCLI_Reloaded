@@ -11,3 +11,9 @@ An improved version of the official ChamelonUltra CLI client
 - Install the required libs ``python3 -m pip install -r requirements.txt``
 - Launch ``chameleon_cli_main.py`` 
 - Profit
+
+
+### Known bugs
+- Won't catch the KeyboardInterupt 
+- Doesn't update to green USB when connected 
+- No command history
