@@ -1,4 +1,4 @@
-## Since my PoC has been used in the official CLI client (https://github.com/RfidResearchGroup/ChameleonUltra/pull/66#issuecomment-1685416892) 
+## Since my PoC has been used in the official CLI client (https://github.com/RfidResearchGroup/ChameleonUltra/pull/66) 
 This project doesn't need to live anymore
 
 # ChameleonUltraCLI_Reloaded
